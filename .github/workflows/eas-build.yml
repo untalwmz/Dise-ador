@@ -20,6 +20,9 @@ jobs:
   build:
     name: EAS Build (Android)
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./splash-screen-designer
     steps:
       - name: Descargar código
         uses: actions/checkout@v4
