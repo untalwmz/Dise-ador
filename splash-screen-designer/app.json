@@ -1,0 +1,39 @@
+{
+  "expo": {
+    "name": "Splash Screen Designer",
+    "slug": "splash-screen-designer",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "cover",
+      "backgroundColor": "#0B0F19"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.yamith.splashscreendesigner"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0B0F19"
+      },
+      "package": "com.yamith.splashscreendesigner"
+    },
+    "web": {
+      "favicon": "./assets/icon.png"
+    },
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Permite elegir un ícono personalizado desde tu galería para tu splash screen."
+        }
+      ],
+      "./plugins/withManageExternalStorage.js"
+    ]
+  }
+}
