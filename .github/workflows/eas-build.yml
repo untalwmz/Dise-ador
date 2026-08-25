@@ -32,13 +32,10 @@ jobs:
         with:
           node-version: 20
 
-      - name: Configurar Expo y EAS CLI
-        uses: expo/expo-github-action@v8
-        with:
-          eas-version: latest
-          token: ${{ secrets.EXPO_TOKEN }}
+      - name: Instalar EAS CLI
+        run: npm install -g eas-cli
 
-      - name: Instalar dependencias
+      - name: Instalar dependencias del proyecto
         run: npm install
 
       - name: Vincular proyecto a Expo (Autocrea projectId)
