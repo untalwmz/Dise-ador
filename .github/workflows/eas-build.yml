@@ -1,50 +1,159 @@
-name: Build Android APK (EAS)
+name: Build & Release Android APK
 
 on:
   push:
     branches: [main]
+    paths:
+      - "**.zip"
+      - ".github/workflows/build-release.yml"
   workflow_dispatch:
     inputs:
-      profile:
-        description: 'Perfil de EAS a compilar'
-        required: true
-        default: 'preview'
-        type: choice
-        options:
-          - preview
-          - production
-          - development
+      zip_pattern:
+        description: "Patrón (glob) del zip a compilar, por si hay varios en el repo"
+        required: false
+        default: "*.zip"
+
+permissions:
+  contents: write
 
 jobs:
   build:
-    name: EAS Build (Android)
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./splash-screen-designer
 
     steps:
-      - name: Descargar código
+      - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Configurar Node
+      # ---------------------------------------------------------------
+      # 1. Buscar automáticamente el ZIP del proyecto en el repositorio
+      # ---------------------------------------------------------------
+      - name: Localizar el ZIP del proyecto
+        id: findzip
+        run: |
+          set -e
+          PATTERN="${{ github.event.inputs.zip_pattern || '*.zip' }}"
+
+          ZIP_PATH=$(find . -type f -iname "$PATTERN" \
+            -not -path "*/node_modules/*" \
+            -not -path "*/.git/*" \
+            -printf '%T@ %p\n' | sort -rn | head -n1 | cut -d' ' -f2-)
+
+          if [ -z "$ZIP_PATH" ]; then
+            echo "::error::No se encontró ningún .zip en el repositorio (patrón: $PATTERN)."
+            exit 1
+          fi
+
+          echo "Zip encontrado: $ZIP_PATH"
+          echo "zip_path=$ZIP_PATH" >> "$GITHUB_OUTPUT"
+
+      # ---------------------------------------------------------------
+      # 2. Descomprimir en una carpeta de trabajo limpia
+      # ---------------------------------------------------------------
+      - name: Descomprimir proyecto
+        id: extract
+        run: |
+          set -e
+          mkdir -p build-src
+          unzip -o "${{ steps.findzip.outputs.zip_path }}" -d build-src
+
+          # El zip puede traer una carpeta raíz (ej: agro-m3-app/) o el
+          # contenido suelto. Detectamos dónde vive el package.json real.
+          PROJECT_DIR=$(find build-src -maxdepth 4 -name "package.json" \
+            -not -path "*/node_modules/*" | head -n1 | xargs dirname)
+
+          if [ -z "$PROJECT_DIR" ]; then
+            echo "::error::No se encontró package.json dentro del zip descomprimido."
+            exit 1
+          fi
+
+          echo "Carpeta del proyecto: $PROJECT_DIR"
+          echo "project_dir=$PROJECT_DIR" >> "$GITHUB_OUTPUT"
+
+      # ---------------------------------------------------------------
+      # 3. Leer nombre / versión de la app (para el Release)
+      # ---------------------------------------------------------------
+      - name: Leer metadata de la app
+        id: meta
+        working-directory: ${{ steps.extract.outputs.project_dir }}
+        run: |
+          set -e
+          APP_NAME=$(node -p "require('./app.json').expo.name" 2>/dev/null || node -p "require('./package.json').name")
+          APP_VERSION=$(node -p "require('./package.json').version" 2>/dev/null || echo "0.0.0")
+          SAFE_NAME=$(echo "$APP_NAME" | tr ' ' '-' | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9-')
+
+          echo "app_name=$APP_NAME" >> "$GITHUB_OUTPUT"
+          echo "app_version=$APP_VERSION" >> "$GITHUB_OUTPUT"
+          echo "safe_name=$SAFE_NAME" >> "$GITHUB_OUTPUT"
+
+      # ---------------------------------------------------------------
+      # 4. Entorno de compilación
+      # ---------------------------------------------------------------
+      - name: Configurar Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: "20"
 
-      - name: Instalar EAS CLI
-        run: npm install -g eas-cli
+      - name: Configurar JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
 
-      - name: Instalar dependencias del proyecto
-        run: npm install
+      - name: Configurar Android SDK
+        uses: android-actions/setup-android@v3
 
-      - name: Vincular proyecto a Expo (Autocrea projectId)
-        run: eas init --account wmz_0fficial --non-interactive
+      # ---------------------------------------------------------------
+      # 5. Instalar dependencias y generar proyecto nativo Android
+      # ---------------------------------------------------------------
+      - name: Instalar dependencias npm
+        working-directory: ${{ steps.extract.outputs.project_dir }}
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+
+      - name: Expo prebuild (genera carpeta android/)
+        working-directory: ${{ steps.extract.outputs.project_dir }}
         env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          CI: "1"
+        run: npx expo prebuild -p android --no-install --clean
 
-      - name: Compilar APK en la nube de EAS
-        run: eas build --platform android --profile ${{ github.event.inputs.profile || 'preview' }} --non-interactive --no-wait
+      # ---------------------------------------------------------------
+      # 6. Compilar el APK con Gradle
+      # ---------------------------------------------------------------
+      - name: Dar permisos a gradlew
+        working-directory: ${{ steps.extract.outputs.project_dir }}/android
+        run: chmod +x gradlew
+
+      - name: Compilar APK (release)
+        working-directory: ${{ steps.extract.outputs.project_dir }}/android
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Ubicar y renombrar el APK
+        id: apk
+        working-directory: ${{ steps.extract.outputs.project_dir }}
+        run: |
+          set -e
+          APK_SRC=$(find android/app/build/outputs/apk/release -name "*.apk" | head -n1)
+          APK_DEST="${{ steps.meta.outputs.safe_name }}-${{ steps.meta.outputs.app_version }}.apk"
+          cp "$APK_SRC" "$APK_DEST"
+          echo "apk_path=${{ steps.extract.outputs.project_dir }}/$APK_DEST" >> "$GITHUB_OUTPUT"
+
+      # ---------------------------------------------------------------
+      # 7. Publicar el Release con el APK adjunto
+      # ---------------------------------------------------------------
+      - name: Crear Release en GitHub
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.meta.outputs.app_version }}-${{ github.run_number }}
+          name: "${{ steps.meta.outputs.app_name }} v${{ steps.meta.outputs.app_version }}"
+          body: |
+            Compilación automática desde `${{ steps.findzip.outputs.zip_path }}`.
+
+            - Commit: ${{ github.sha }}
+            - Ejecutado por: workflow_dispatch/push #${{ github.run_number }}
+          files: ${{ steps.apk.outputs.apk_path }}
         env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-          
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
