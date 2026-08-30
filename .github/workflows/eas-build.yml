@@ -107,12 +107,7 @@ jobs:
       # ---------------------------------------------------------------
       - name: Instalar dependencias npm
         working-directory: ${{ steps.extract.outputs.project_dir }}
-        run: |
-          if [ -f package-lock.json ]; then
-            npm ci --legacy-peer-deps
-          else
-            npm install --legacy-peer-deps
-          fi
+        run: npm install --legacy-peer-deps
 
       - name: Expo prebuild (genera carpeta android/)
         working-directory: ${{ steps.extract.outputs.project_dir }}
@@ -157,3 +152,4 @@ jobs:
           files: ${{ steps.apk.outputs.apk_path }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
