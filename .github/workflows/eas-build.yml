@@ -102,12 +102,35 @@ jobs:
       - name: Configurar Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Cache de Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
       # ---------------------------------------------------------------
       # 5. Instalar dependencias y generar proyecto nativo Android
       # ---------------------------------------------------------------
+      - name: Configurar npm (legacy-peer-deps global)
+        working-directory: ${{ steps.extract.outputs.project_dir }}
+        run: echo "legacy-peer-deps=true" > .npmrc
+
       - name: Instalar dependencias npm
         working-directory: ${{ steps.extract.outputs.project_dir }}
-        run: npm install --legacy-peer-deps
+        run: npm install
+
+      - name: Alinear versiones de paquetes Expo al SDK (auto-fix)
+        working-directory: ${{ steps.extract.outputs.project_dir }}
+        run: npx expo install --fix
+
+      - name: Diagnóstico expo-doctor (informativo, no bloquea el build)
+        working-directory: ${{ steps.extract.outputs.project_dir }}
+        continue-on-error: true
+        run: npx expo-doctor || true
 
       - name: Expo prebuild (genera carpeta android/)
         working-directory: ${{ steps.extract.outputs.project_dir }}
@@ -124,7 +147,17 @@ jobs:
 
       - name: Compilar APK (release)
         working-directory: ${{ steps.extract.outputs.project_dir }}/android
-        run: ./gradlew assembleRelease --no-daemon
+        run: |
+          set -o pipefail
+          ./gradlew assembleRelease --no-daemon --stacktrace 2>&1 | tee gradle-build.log
+
+      - name: Subir log de build (si falla)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gradle-build-log
+          path: ${{ steps.extract.outputs.project_dir }}/android/gradle-build.log
+          retention-days: 5
 
       - name: Ubicar y renombrar el APK
         id: apk
