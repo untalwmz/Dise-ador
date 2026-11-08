@@ -17,6 +17,9 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      name: ${{ steps.apk.outputs.name }}
+      version: ${{ steps.apk.outputs.version }}
     env:
       # Clave de Google Maps (Settings → Secrets and variables → Actions).
       # Si no existe, la app usa el mapa de respaldo (Esri).
@@ -96,24 +99,75 @@ jobs:
           path: ${{ steps.apk.outputs.path }}
           retention-days: 30
 
+
+  # Instala el APK en un emulador Android, lo abre y recorre las pantallas.
+  # Si la app se cierra, el workflow falla y NO se publica el Release.
+  smoke-test:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Descargar APK
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.build.outputs.name }}
+
+      - name: Habilitar KVM (aceleración del emulador)
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Probar la app en el emulador
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          script: bash .github/scripts/smoke-test.sh
+
+      - name: Subir capturas y logcat
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-test-${{ github.run_number }}
+          path: smoke/
+          retention-days: 14
+
+  release:
+    needs: [build, smoke-test]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar APK
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.build.outputs.name }}
+
       - name: Publicar Release con el APK
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.apk.outputs.name }}
+          tag_name: ${{ needs.build.outputs.name }}
           target_commitish: ${{ github.sha }}
-          name: ${{ steps.apk.outputs.name }}.apk
+          name: ${{ needs.build.outputs.name }}.apk
           make_latest: true
           body: |
-            ## Topógrafo GPS v${{ steps.apk.outputs.version }}
+            ## Topógrafo GPS v${{ needs.build.outputs.version }}
 
-            **Descarga:** `${{ steps.apk.outputs.name }}.apk` (en *Assets*, abajo).
+            **Descarga:** `${{ needs.build.outputs.name }}.apk` (en *Assets*, abajo).
 
             ### Instalación en Android
             1. Descarga el APK en el teléfono.
             2. Ábrelo y permite «Instalar apps desconocidas» si Android lo pide.
             3. Si tenías una versión anterior, se actualiza conservando tus lotes.
 
+            ✅ Probado automáticamente en un emulador Android (abre la app y recorre las pantallas).
+
             Rama: `${{ github.ref_name }}` · Commit: ${{ github.sha }}
-          files: ${{ steps.apk.outputs.path }}
+          files: ${{ needs.build.outputs.name }}.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
