@@ -230,6 +230,8 @@ export function averageFixes(samples) {
   let lon = 0;
   let alt = 0;
   let altW = 0;
+  let msl = 0;
+  let mslW = 0;
   for (const s of samples) {
     const acc = Math.max(s.acc || 10, 0.005);
     const w = 1 / (acc * acc);
@@ -240,6 +242,10 @@ export function averageFixes(samples) {
       alt += s.alt * w;
       altW += w;
     }
+    if (s.altMsl != null) {
+      msl += s.altMsl * w;
+      mslW += w;
+    }
   }
   const best = Math.min(...samples.map((s) => s.acc || 10));
   // La precisión combinada mejora aprox. con sqrt(n), pero no la dejamos
@@ -249,6 +255,7 @@ export function averageFixes(samples) {
     lat: lat / wSum,
     lon: lon / wSum,
     alt: altW ? alt / altW : null,
+    altMsl: mslW ? msl / mslW : null,
     acc: combined,
     t: samples[samples.length - 1].t,
     samples: samples.length,
@@ -330,20 +337,36 @@ export function computeSurvey(points) {
 
 // Conversiones de área usadas en Latinoamérica.
 export const AREA_UNITS = [
-  { key: 'm2', label: 'm²', factor: 1, decimals: 2 },
-  { key: 'ha', label: 'Hectáreas', factor: 10000, decimals: 4 },
-  { key: 'ac', label: 'Acres', factor: 4046.8564224, decimals: 4 },
-  { key: 'mz', label: 'Manzanas', factor: 6987.37, decimals: 4 },
-  { key: 'v2', label: 'Varas²', factor: 0.698737, decimals: 2 },
-  { key: 'fan', label: 'Fanegadas', factor: 6400, decimals: 4 },
+  { key: 'm2', label: 'm²', long: 'Metros cuadrados', factor: 1, decimals: 2 },
+  { key: 'ha', label: 'Hectáreas', long: 'Hectáreas', factor: 10000, decimals: 4 },
+  { key: 'fan', label: 'Fanegadas', long: 'Fanegadas / plazas (6.400 m²)', factor: 6400, decimals: 4 },
+  { key: 'v2co', label: 'Varas² (Col.)', long: 'Varas cuadradas Colombia (0,64 m²)', factor: 0.64, decimals: 2 },
+  { key: 'mz', label: 'Manzanas', long: 'Manzanas (6.987 m²)', factor: 6987.37, decimals: 4 },
+  { key: 'v2', label: 'Varas² (C.A.)', long: 'Varas cuadradas C. América (0,70 m²)', factor: 0.698737, decimals: 2 },
+  { key: 'ac', label: 'Acres', long: 'Acres', factor: 4046.8564224, decimals: 4 },
+  { key: 'km2', label: 'km²', long: 'Kilómetros cuadrados', factor: 1e6, decimals: 6 },
 ];
 
+export const LENGTH_UNITS = [
+  { key: 'm', label: 'm', long: 'Metros', factor: 1, decimals: 2 },
+  { key: 'km', label: 'km', long: 'Kilómetros', factor: 1000, decimals: 3 },
+  { key: 'vco', label: 'varas', long: 'Varas Colombia (0,80 m)', factor: 0.8, decimals: 2 },
+  { key: 'vca', label: 'varas', long: 'Varas C. América (0,8359 m)', factor: 0.8359, decimals: 2 },
+  { key: 'ft', label: 'ft', long: 'Pies', factor: 0.3048, decimals: 2 },
+  { key: 'yd', label: 'yd', long: 'Yardas', factor: 0.9144, decimals: 2 },
+];
+
+export function formatInUnit(value, unit) {
+  return `${formatNumber(value / unit.factor, unit.decimals)} ${unit.label}`;
+}
+
 export function formatNumber(v, decimals = 2) {
-  if (v == null || Number.isNaN(v)) return '—';
-  return v.toLocaleString('es', {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
-  });
+  if (v == null || !Number.isFinite(v)) return '—';
+  // Formato fijo latinoamericano (3.627,14), igual en todos los teléfonos.
+  const [int, dec] = Math.abs(v).toFixed(decimals).split('.');
+  const grouped = int.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  const neg = v < 0 && Number(Math.abs(v).toFixed(decimals)) !== 0;
+  return `${neg ? '-' : ''}${grouped}${dec ? `,${dec}` : ''}`;
 }
 
 export function formatArea(m2) {

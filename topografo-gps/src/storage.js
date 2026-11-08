@@ -11,6 +11,10 @@ export const DEFAULT_SETTINGS = {
   averageSamples: 10, // lecturas a promediar al marcar un vértice
   source: 'phone', // 'phone' | 'external' (receptor Bluetooth)
   externalDevice: null, // { name, address }
+  lengthUnit: 'm',
+  areaUnit: 'm2',
+  mapType: 'satellite', // satellite | hybrid | standard
+  mapProvider: 'google', // google | esri (Google solo si el APK tiene clave)
 };
 
 async function readJSON(key, fallback) {

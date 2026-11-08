@@ -5,7 +5,7 @@ import { clearDraft, getDraft, listLots } from '../storage';
 import { formatArea, formatLength, polygonArea, pathLength } from '../geo';
 import { colors, common } from '../theme';
 
-export default function HomeScreen({ navigate }) {
+export default function HomeScreen({ navigate, push, active }) {
   const [lots, setLots] = useState([]);
   const [draft, setDraft] = useState(null);
 
@@ -16,8 +16,8 @@ export default function HomeScreen({ navigate }) {
   }, []);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    if (active) load();
+  }, [active, load]);
 
   const discardDraft = () =>
     Alert.alert('Descartar levantamiento', '¿Borrar el levantamiento sin terminar?', [
@@ -41,7 +41,7 @@ export default function HomeScreen({ navigate }) {
           <Text style={styles.title}>Topógrafo GPS</Text>
           <Text style={styles.subtitle}>Mide tu terreno caminando su perímetro</Text>
         </View>
-        <Pressable onPress={() => navigate('gps', { from: 'home' })} style={styles.gpsBtn} hitSlop={8}>
+        <Pressable onPress={() => push('gps')} style={styles.gpsBtn} hitSlop={8}>
           <Text style={styles.gpsBtnIcon}>📡</Text>
           <Text style={styles.gpsBtnText}>Receptor</Text>
         </Pressable>
@@ -110,7 +110,7 @@ export default function HomeScreen({ navigate }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   header: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.header,
     paddingHorizontal: 20,
     paddingTop: 18,
     paddingBottom: 20,

@@ -127,3 +127,14 @@ test('lote irregular coincide con el área geodésica de PROJ', () => {
   assert.ok(Math.abs(polygonArea(pts) - 66064.2309) < 0.5);
   assert.ok(Math.abs(pathLength(pts, true) - 1034.2249) < 0.05);
 });
+
+test('formato de números 3.627,14', async () => {
+  const { formatNumber } = await import('../src/geo.js');
+  assert.equal(formatNumber(3627.144, 2), '3.627,14');
+  assert.equal(formatNumber(1234567.5, 1), '1.234.567,5');
+  assert.equal(formatNumber(999.996, 2), '1.000,00');
+  assert.equal(formatNumber(-0.001, 2), '0,00');
+  assert.equal(formatNumber(-12.5, 0), '-13');
+  assert.equal(formatNumber(42, 0), '42');
+  assert.equal(formatNumber(null), '—');
+});

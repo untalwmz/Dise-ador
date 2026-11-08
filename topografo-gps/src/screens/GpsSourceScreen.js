@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, BackHandler, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Button from '../components/Button';
 import * as External from '../gnss/external';
 import { FIX_TYPES } from '../gnss/nmea';
 import { getSettings, saveSettings } from '../storage';
 import { formatAccuracy } from '../geo';
 import { accuracyColor, colors, common } from '../theme';
+import { useBackButton } from '../hooks';
 
-export default function GpsSourceScreen({ navigate, params }) {
-  const back = params?.from || 'home';
+export default function GpsSourceScreen({ goBack, active }) {
   const [settings, setSettings] = useState(null);
   const [ext, setExt] = useState(External.getState());
   const [devices, setDevices] = useState(null);
@@ -20,13 +20,7 @@ export default function GpsSourceScreen({ navigate, params }) {
   }, []);
   useEffect(() => External.subscribe(setExt), []);
 
-  useEffect(() => {
-    const h = BackHandler.addEventListener('hardwareBackPress', () => {
-      navigate(back);
-      return true;
-    });
-    return () => h.remove();
-  }, [navigate, back]);
+  useBackButton(active, goBack);
 
   const update = useCallback(
     (patch) => {
@@ -75,7 +69,7 @@ export default function GpsSourceScreen({ navigate, params }) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Pressable onPress={() => navigate(back)} hitSlop={10} style={styles.back}>
+        <Pressable onPress={goBack} hitSlop={10} style={styles.back}>
           <Text style={styles.backText}>←</Text>
         </Pressable>
         <Text style={styles.title}>Receptor GPS</Text>
@@ -221,7 +215,7 @@ function Info({ label, value, color }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
-  header: { backgroundColor: colors.primary, flexDirection: 'row', alignItems: 'center', padding: 12, gap: 10 },
+  header: { backgroundColor: colors.header, flexDirection: 'row', alignItems: 'center', padding: 12, gap: 10 },
   back: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
   backText: { color: '#fff', fontSize: 24, fontWeight: '700' },
   title: { color: '#fff', fontSize: 20, fontWeight: '800' },

@@ -1,14 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, BackHandler, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
-import SatelliteMap from '../components/SatelliteMap';
+import MapCanvas from '../components/MapCanvas';
 import Sketch from '../components/Sketch';
 import Button from '../components/Button';
 import Chips from '../components/Chips';
 import { AREA_UNITS, computeSurvey, formatAccuracy, formatDMS, formatLength, formatNumber, pathLength, polygonArea, simplify } from '../geo';
 import { safeFileName, toCSV, toGeoJSON, toKML, toReport } from '../exporters';
-import { deleteLot, getLot, saveLot } from '../storage';
+import { deleteLot, getLot, getSettings, saveLot } from '../storage';
+import { useBackButton } from '../hooks';
+import { ellipsoidToMsl, meanWithError } from '../altitude';
 import { colors, common } from '../theme';
 
 const EXPORTS = [
@@ -18,11 +20,16 @@ const EXPORTS = [
   { key: 'txt', label: 'Informe (texto)', ext: 'txt', mime: 'text/plain', fn: toReport },
 ];
 
-export default function DetailScreen({ navigate, params }) {
+export default function DetailScreen({ navigate, push, params, active }) {
   const [lot, setLot] = useState(null);
   const [view, setView] = useState('map');
   const [exporting, setExporting] = useState(null);
   const [tolerance, setTolerance] = useState(1);
+  const [settings, setSettings] = useState(null);
+
+  useEffect(() => {
+    getSettings().then(setSettings);
+  }, []);
 
   useEffect(() => {
     getLot(params.id).then((l) => {
@@ -31,27 +38,26 @@ export default function DetailScreen({ navigate, params }) {
     });
   }, [params.id, navigate]);
 
-  useEffect(() => {
-    const h = BackHandler.addEventListener('hardwareBackPress', () => {
-      navigate('home');
-      return true;
-    });
-    return () => h.remove();
-  }, [navigate]);
+  useBackButton(active, () => navigate('home'));
 
   const report = useMemo(() => (lot ? computeSurvey(lot.points) : null), [lot]);
-  const mapData = useMemo(
+  const mapSides = useMemo(
     () =>
-      lot && report
-        ? {
-            points: lot.points,
-            closed: true,
-            fit: true,
-            sides: lot.points.length <= 40 ? report.sides.map((s) => ({ from: s.from, to: s.to, label: `${s.length.toFixed(1)} m` })) : null,
-          }
-        : null,
+      report && lot.points.length <= 40
+        ? report.sides.map((s) => ({ from: s.from, to: s.to, label: `${formatNumber(s.length, 1)} m` }))
+        : [],
     [lot, report],
   );
+  // Altitud MSNM de los vértices medidos con GPS (los antiguos sin altMsl se corrigen con EGM96)
+  const altStats = useMemo(() => {
+    if (!lot) return null;
+    const vals = lot.points
+      .map((p) => (p.altMsl != null ? p.altMsl : p.alt != null && lot.source !== 'external' ? ellipsoidToMsl(p.lat, p.lon, p.alt) : p.alt))
+      .filter((v) => v != null);
+    if (!vals.length) return null;
+    const m = meanWithError(vals);
+    return { ...m, min: Math.min(...vals), max: Math.max(...vals) };
+  }, [lot]);
 
   if (!lot || !report) return <View style={{ flex: 1, backgroundColor: colors.bg }} />;
 
@@ -163,7 +169,14 @@ export default function DetailScreen({ navigate, params }) {
         </View>
         {view === 'map' ? (
           <View style={styles.mapBox}>
-            <SatelliteMap data={mapData} />
+            <MapCanvas
+              provider={settings?.mapProvider}
+              mapType={settings?.mapType || 'satellite'}
+              points={lot.points}
+              sides={mapSides}
+              fitKey={lot.id + lot.points.length}
+              follow={false}
+            />
           </View>
         ) : (
           <Sketch points={lot.points} sides={report.sides} height={300} />
@@ -189,6 +202,35 @@ export default function DetailScreen({ navigate, params }) {
             <Metric label="Perímetro" value={formatLength(report.perimeter)} />
             <Metric label="Vértices" value={String(lot.points.length)} />
             <Metric label="Precisión media" value={report.meanAcc != null ? `±${formatAccuracy(report.meanAcc)}` : '—'} />
+          </View>
+        </View>
+
+        <View style={[common.card, { gap: 8 }]}>
+          <Text style={common.h2}>Altitud y clima del lote</Text>
+          {altStats ? (
+            <View style={common.row}>
+              <Metric label="Altitud media" value={`${formatNumber(altStats.mean, 0)} msnm`} />
+              <Metric label="Mínima" value={`${formatNumber(altStats.min, 0)} m`} />
+              <Metric label="Máxima" value={`${formatNumber(altStats.max, 0)} m`} />
+            </View>
+          ) : (
+            <Text style={common.muted}>Este lote no tiene altitudes GPS (vértices dibujados en el mapa).</Text>
+          )}
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <Button
+              title="⛰ Altitud precisa"
+              small
+              variant="outline"
+              style={{ flex: 1 }}
+              onPress={() => push('altitude', { lat: report.centroid.lat, lon: report.centroid.lon, title: lot.name })}
+            />
+            <Button
+              title="🌡 Clima"
+              small
+              variant="outline"
+              style={{ flex: 1 }}
+              onPress={() => push('weather', { lat: report.centroid.lat, lon: report.centroid.lon, title: lot.name })}
+            />
           </View>
         </View>
 
@@ -313,7 +355,7 @@ function Metric({ label, value }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   header: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.header,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,

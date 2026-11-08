@@ -128,6 +128,8 @@ export function createNmeaAssembler(onFix) {
         lat: gga.lat,
         lon: gga.lon,
         alt: gga.alt,
+        altMsl: gga.alt, // GGA entrega altitud sobre el geoide (MSNM)
+        altAcc: gst && gst.time === gga.time && gst.altErr != null ? gst.altErr : null,
         acc: estimateAccuracy(gga, gst),
         t: Date.now(),
         quality: gga.quality,

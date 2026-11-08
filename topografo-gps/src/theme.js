@@ -2,6 +2,8 @@ import { StyleSheet } from 'react-native';
 
 export const colors = {
   primary: '#2e7d32',
+  header: '#5d4037',
+  fab: '#2fb344',
   primaryDark: '#1b5e20',
   accent: '#ff8f00',
   danger: '#c62828',

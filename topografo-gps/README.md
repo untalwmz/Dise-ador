@@ -17,6 +17,44 @@ App Android para medir terrenos caminando su perímetro con el GPS del teléfono
 - Borrador automático: si la app se cierra a mitad de una medición, se puede continuar.
 - La pantalla se mantiene encendida durante la medición.
 
+## Pantalla de medición
+
+- Mapa a pantalla completa con tarjeta de **Distancia total** y **Tamaño del área**; toca cada valor
+  para cambiar la unidad (metros, km, varas, pies… / m², hectáreas, fanegadas, varas², manzanas, acres).
+- **＋** agrega un vértice en la mira central (dibujar sobre la imagen satelital).
+- **GPS** agrega tu posición promediando varias lecturas; **Caminar** registra el borde mientras caminas.
+- Los vértices se pueden **arrastrar** para corregirlos; ↶ deshace, ⛶ encuadra el lote, ✓ guarda.
+- Botones de **Altitud** y **Clima** sin perder la medición en curso.
+
+## Mapa satelital de Google
+
+La app usa Google Maps si el APK se compila con una clave; si no, usa imágenes Esri.
+
+1. En [Google Cloud Console](https://console.cloud.google.com/) crea un proyecto y activa
+   **Maps SDK for Android** (requiere cuenta de facturación; el SDK de mapas para Android no tiene
+   costo por uso).
+2. En *Credenciales* crea una **clave de API** y restríngela a *Apps para Android* con:
+   - Paquete: `com.diseador.topografogps`
+   - SHA-1: `5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25`
+3. En GitHub: **Settings → Secrets and variables → Actions → New repository secret**,
+   nombre `GOOGLE_MAPS_API_KEY`, valor = la clave.
+4. Vuelve a compilar (cualquier cambio en `topografo-gps/` o *Run workflow*).
+
+La ubicación del teléfono ya usa el servicio de Google (Fused Location Provider de Google Play Services).
+
+## Altitud (MSNM)
+
+El GPS del teléfono da la altura sobre el elipsoide WGS84, no sobre el nivel del mar. La app la
+corrige con el geoide **EGM96** (≈ 26 m en el sur de Colombia) y la combina, según su precisión, con:
+el **barómetro** del teléfono calibrado con la presión al nivel del mar del momento, y el **modelo de
+terreno Copernicus** (90 m). Con un receptor externo se usa su altitud MSNM (centimétrica con RTK fijo).
+«Promediar 60 s» reduce el error del GPS.
+
+## Clima
+
+Temperatura y **sensación térmica** actuales, promedio de hoy, gráfica de 24 h, 7 días y los
+**promedios mensuales de los últimos 12 meses** (reanálisis ERA5). Datos de Open-Meteo, sin clave.
+
 ## Receptor GPS externo (Bluetooth)
 
 Botón **📡 Receptor** en la pantalla principal (o «Cambiar» antes de iniciar una medición).
@@ -62,4 +100,6 @@ push que toque esta carpeta, y se publica como **Release** con el nombre del APK
 - `src/exporters.js` — KML, GeoJSON, CSV, informe.
 - `src/screens/SurveyScreen.js` — medición en campo.
 - `src/screens/DetailScreen.js` — resultados y exportación.
-- `src/components/SatelliteMap.js` — mapa Leaflet en WebView.
+- `src/components/MapCanvas.js` — elige Google Maps (`GoogleMap.js`) o Leaflet/Esri (`LeafletMap.js`).
+- `src/altitude.js`, `src/screens/AltitudeScreen.js` — geoide EGM96, barómetro, combinación.
+- `src/openmeteo.js`, `src/weatherStats.js`, `src/screens/WeatherScreen.js` — clima.

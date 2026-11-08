@@ -86,7 +86,7 @@ export function toGeoJSON(lot, points) {
             norte: Number(v.utm.northing.toFixed(3)),
             zona_utm: `${v.utm.zone}${v.utm.hemisphere}`,
             precision_m: v.acc != null ? Number(v.acc.toFixed(3)) : null,
-            altitud_m: v.alt != null ? Number(v.alt.toFixed(3)) : null,
+            altitud_msnm: (v.altMsl ?? v.alt) != null ? Number((v.altMsl ?? v.alt).toFixed(3)) : null,
           },
           geometry: { type: 'Point', coordinates: [v.lon, v.lat] },
         })),
@@ -100,7 +100,7 @@ export function toGeoJSON(lot, points) {
 export function toCSV(lot, points) {
   const r = computeSurvey(points);
   const header =
-    'vertice,latitud,longitud,este_utm,norte_utm,zona_utm,altitud_m,precision_m,lado,distancia_m,azimut,rumbo';
+    'vertice,latitud,longitud,este_utm,norte_utm,zona_utm,altitud_msnm,precision_m,lado,distancia_m,azimut,rumbo';
   const rows = r.vertices.map((v, i) => {
     const s = r.sides[i];
     return [
@@ -110,7 +110,7 @@ export function toCSV(lot, points) {
       v.utm.easting.toFixed(3),
       v.utm.northing.toFixed(3),
       `${v.utm.zone}${v.utm.hemisphere}`,
-      v.alt != null ? v.alt.toFixed(3) : '',
+      (v.altMsl ?? v.alt) != null ? (v.altMsl ?? v.alt).toFixed(3) : '',
       v.acc != null ? v.acc.toFixed(3) : '',
       s ? `V${s.from}-V${s.to}` : '',
       s ? s.length.toFixed(3) : '',

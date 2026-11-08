@@ -19,6 +19,10 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      # Clave de Google Maps (Settings → Secrets and variables → Actions).
+      # Si no existe, la app usa el mapa de respaldo (Esri).
+      GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
 
     steps:
       - name: Checkout repo
