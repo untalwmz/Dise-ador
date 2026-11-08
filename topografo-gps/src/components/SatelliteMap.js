@@ -19,6 +19,8 @@ const HTML = `<!DOCTYPE html>
   .side { background: rgba(255,214,0,.9); color:#000; border:none; font: bold 10px sans-serif;
     padding: 0 3px; box-shadow:none; }
   .side:before { display:none; }
+  /* El panel inferior de la app tapa unos px del mapa */
+  .leaflet-bottom { margin-bottom: 16px; }
 </style>
 </head><body>
 <div id="map"></div>
@@ -34,11 +36,72 @@ const HTML = `<!DOCTYPE html>
     return;
   }
   var map = L.map('map', { zoomControl: false, attributionControl: true, maxZoom: 22 }).setView([0,0], 2);
-  var sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-    maxNativeZoom: 19, maxZoom: 22, attribution: 'Imágenes © Esri, Maxar, Earthstar Geographics'
+  // Esri no tiene imágenes a zoom 18-19 en muchas zonas rurales y devuelve
+  // teselas "Map data not yet available". Por defecto usamos zoom 17 (cobertura
+  // casi global, ampliado al acercarse) y consultamos el servicio "tilemap" para
+  // subir a 18/19 solo donde realmente hay imagen.
+  var SAT_URL = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer';
+  var SAFE_ZOOM = 17;
+  var sat = L.tileLayer(SAT_URL + '/tile/{z}/{y}/{x}', {
+    maxNativeZoom: SAFE_ZOOM, maxZoom: 22, attribution: 'Imágenes © Esri, Maxar, Earthstar Geographics'
   }).addTo(map);
   var labels = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
-    maxNativeZoom: 19, maxZoom: 22
+    maxNativeZoom: SAFE_ZOOM, maxZoom: 22
+  });
+
+  var availCache = {};
+  function tileXY(lat, lon, z) {
+    var n = Math.pow(2, z), r = lat * Math.PI / 180;
+    return [Math.floor((lon + 180) / 360 * n),
+            Math.floor((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * n)];
+  }
+  // true / false según haya imagen; null si no se pudo consultar.
+  function hasImagery(lat, lon, z) {
+    var t = tileXY(lat, lon, z), key = z + '/' + t[1] + '/' + t[0];
+    if (key in availCache) return Promise.resolve(availCache[key]);
+    return fetch(SAT_URL + '/tilemap/' + key + '/1/1?f=json')
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        var ok = !!(j && j.valid !== false && j.data && j.data[0] === 1);
+        availCache[key] = ok;
+        return ok;
+      })
+      .catch(function(){ return null; });
+  }
+  function setNative(z) {
+    if (sat.options.maxNativeZoom === z) return;
+    sat.options.maxNativeZoom = z;
+    // redraw() no recalcula el rango de teselas al cambiar de nivel: re-agregamos la capa.
+    if (map.hasLayer(sat)) {
+      map.removeLayer(sat);
+      sat.addTo(map);
+      sat.bringToBack();
+    }
+    post({type:'nativeZoom', value:z});
+  }
+  var checking = false, pendingCheck = false;
+  function updateNative() {
+    if (checking) { pendingCheck = true; return; }
+    if (map.getZoom() <= SAFE_ZOOM) return;
+    checking = true;
+    var c = map.getCenter();
+    (function tryZoom(z) {
+      if (z <= SAFE_ZOOM) { setNative(SAFE_ZOOM); return done(); }
+      hasImagery(c.lat, c.lng, z).then(function(ok){
+        if (ok === null) return done();      // sin respuesta: nos quedamos como estamos
+        if (ok) { setNative(z); return done(); }
+        tryZoom(z - 1);
+      });
+    })(19);
+    function done() {
+      checking = false;
+      if (pendingCheck) { pendingCheck = false; updateNative(); }
+    }
+  }
+  var nativeTimer = null;
+  map.on('moveend zoomend', function(){
+    clearTimeout(nativeTimer);
+    nativeTimer = setTimeout(updateNative, 400);
   });
   var streets = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxNativeZoom: 19, maxZoom: 22, attribution: '© OpenStreetMap'
