@@ -6,7 +6,7 @@ import SatelliteMap from '../components/SatelliteMap';
 import Sketch from '../components/Sketch';
 import Button from '../components/Button';
 import Chips from '../components/Chips';
-import { AREA_UNITS, computeSurvey, formatDMS, formatLength, formatNumber, pathLength, polygonArea, simplify } from '../geo';
+import { AREA_UNITS, computeSurvey, formatAccuracy, formatDMS, formatLength, formatNumber, pathLength, polygonArea, simplify } from '../geo';
 import { safeFileName, toCSV, toGeoJSON, toKML, toReport } from '../exporters';
 import { deleteLot, getLot, saveLot } from '../storage';
 import { colors, common } from '../theme';
@@ -145,6 +145,7 @@ export default function DetailScreen({ navigate, params }) {
           <Text style={styles.subtitle}>
             {new Date(lot.createdAt).toLocaleString('es')} · UTM {report.zone}
             {report.hemisphere}
+            {lot.receiver ? ` · 📡 ${lot.receiver}` : ''}
           </Text>
         </View>
       </View>
@@ -173,7 +174,7 @@ export default function DetailScreen({ navigate, params }) {
           <Text style={styles.areaBig}>{formatNumber(report.area, 2)} m²</Text>
           <Text style={styles.areaHa}>{formatNumber(report.area / 10000, 4)} hectáreas</Text>
           {report.areaUncertainty != null && (
-            <Text style={common.muted}>Incertidumbre aprox. ± {formatNumber(report.areaUncertainty, 0)} m²</Text>
+            <Text style={common.muted}>Incertidumbre aprox. ± {formatNumber(report.areaUncertainty, report.areaUncertainty < 10 ? 2 : 0)} m²</Text>
           )}
           <View style={styles.unitGrid}>
             {AREA_UNITS.filter((u) => !['m2', 'ha'].includes(u.key)).map((u) => (
@@ -187,7 +188,7 @@ export default function DetailScreen({ navigate, params }) {
           <View style={common.row}>
             <Metric label="Perímetro" value={formatLength(report.perimeter)} />
             <Metric label="Vértices" value={String(lot.points.length)} />
-            <Metric label="Precisión media" value={report.meanAcc != null ? `±${formatNumber(report.meanAcc, 1)} m` : '—'} />
+            <Metric label="Precisión media" value={report.meanAcc != null ? `±${formatAccuracy(report.meanAcc)}` : '—'} />
           </View>
         </View>
 
@@ -251,7 +252,7 @@ export default function DetailScreen({ navigate, params }) {
               <Text style={[styles.td, styles.c1]}>V{v.index}</Text>
               <Text style={[styles.td, styles.cE, styles.num]}>{v.utm.easting.toFixed(2)}</Text>
               <Text style={[styles.td, styles.cE, styles.num]}>{v.utm.northing.toFixed(2)}</Text>
-              <Text style={[styles.td, styles.cA, styles.num]}>{v.acc != null ? v.acc.toFixed(1) : '—'}</Text>
+              <Text style={[styles.td, styles.cA, styles.num]}>{v.acc != null ? v.acc.toFixed(v.acc < 1 ? 2 : 1) : '—'}</Text>
             </View>
           ))}
         </View>
@@ -289,8 +290,9 @@ export default function DetailScreen({ navigate, params }) {
         ) : null}
 
         <Text style={[common.muted, { textAlign: 'center', paddingHorizontal: 10 }]}>
-          Medición con el GPS del teléfono (precisión típica 3–5 m). Útil como referencia; no sustituye un levantamiento
-          topográfico certificado.
+          {lot.source === 'external'
+            ? `Medición con receptor externo${lot.receiver ? ` (${lot.receiver})` : ''}. La exactitud depende del tipo de solución (RTK fijo, DGPS, etc.) y de las correcciones usadas.`
+            : 'Medición con el GPS del teléfono (precisión típica 3–5 m). Útil como referencia; no sustituye un levantamiento topográfico certificado.'}
         </Text>
 
         <Button title="Eliminar lote" variant="danger" small onPress={remove} />

@@ -18,7 +18,9 @@ import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import SatelliteMap from '../components/SatelliteMap';
 import Button from '../components/Button';
 import Chips from '../components/Chips';
-import { averageFixes, formatArea, formatLength, formatNumber, haversine, pathLength, polygonArea } from '../geo';
+import { averageFixes, formatAccuracy, formatArea, formatLength, haversine, pathLength, polygonArea } from '../geo';
+import * as External from '../gnss/external';
+import { FIX_TYPES } from '../gnss/nmea';
 import { clearDraft, getSettings, newId, saveDraft, saveLot, saveSettings } from '../storage';
 import { accuracyColor, colors, common } from '../theme';
 
@@ -39,6 +41,7 @@ export default function SurveyScreen({ navigate, params }) {
   const [name, setName] = useState('');
   const [notes, setNotes] = useState('');
   const [rejected, setRejected] = useState(0);
+  const [ext, setExt] = useState(External.getState());
 
   const startedAt = useRef(resume ? resume.startedAt : Date.now());
   const pointsRef = useRef(points);
@@ -70,15 +73,7 @@ export default function SurveyScreen({ navigate, params }) {
 
   // Procesa cada lectura del GPS
   const handleFix = useCallback(
-    (loc) => {
-      const c = loc.coords;
-      const fix = {
-        lat: c.latitude,
-        lon: c.longitude,
-        alt: c.altitude,
-        acc: c.accuracy,
-        t: loc.timestamp,
-      };
+    (fix) => {
       setCurrent(fix);
       const s = settingsRef.current;
       if (!s) return;
@@ -98,7 +93,7 @@ export default function SurveyScreen({ navigate, params }) {
             setAveraging(null);
             Alert.alert(
               'Señal GPS débil',
-              `No se obtuvo ninguna lectura con precisión mejor que ${s.maxAccuracy} m. Muévete a un lugar despejado o aumenta la precisión máxima.`,
+              `No se obtuvo ninguna lectura con precisión mejor que ±${formatAccuracy(s.maxAccuracy)}. Muévete a un lugar despejado o aumenta la precisión máxima.`,
             );
           }
         } else {
@@ -119,8 +114,22 @@ export default function SurveyScreen({ navigate, params }) {
     [addPoint, finishAveraging],
   );
 
-  // Permisos + suscripción al GPS
+  const source = settings?.source;
+  const extAddress = settings?.externalDevice?.address;
+
+  useEffect(() => External.subscribe(setExt), []);
+
+  // Receptor externo Bluetooth
   useEffect(() => {
+    if (source !== 'external') return undefined;
+    setPermission('granted');
+    External.ensureConnected(settingsRef.current.externalDevice);
+    return External.onFix((fix) => (fix ? handleFix(fix) : setCurrent(null)));
+  }, [source, extAddress, handleFix]);
+
+  // GPS del teléfono: permisos + suscripción
+  useEffect(() => {
+    if (source !== 'phone') return undefined;
     let sub = null;
     let cancelled = false;
     (async () => {
@@ -146,7 +155,14 @@ export default function SurveyScreen({ navigate, params }) {
             timeInterval: 1000,
             distanceInterval: 0,
           },
-          handleFix,
+          (loc) =>
+            handleFix({
+              lat: loc.coords.latitude,
+              lon: loc.coords.longitude,
+              alt: loc.coords.altitude,
+              acc: loc.coords.accuracy,
+              t: loc.timestamp,
+            }),
           () => setPermission('error'),
         );
         if (cancelled) sub.remove();
@@ -158,7 +174,7 @@ export default function SurveyScreen({ navigate, params }) {
       cancelled = true;
       if (sub) sub.remove();
     };
-  }, [handleFix]);
+  }, [source, handleFix]);
 
   // Pantalla siempre encendida mientras se mide
   useEffect(() => {
@@ -237,6 +253,8 @@ export default function SurveyScreen({ navigate, params }) {
         notes: notes.trim(),
         createdAt: startedAt.current,
         mode: settings.mode,
+        source: settings.source,
+        receiver: settings.source === 'external' ? settings.externalDevice?.name || null : null,
         points,
         area: polygonArea(points),
         perimeter: pathLength(points, true),
@@ -277,7 +295,18 @@ export default function SurveyScreen({ navigate, params }) {
   if (!settings) return <View style={{ flex: 1, backgroundColor: colors.bg }} />;
 
   const recording = status === 'recording';
-  const accTxt = current?.acc != null ? `±${formatNumber(current.acc, 1)} m` : 'Buscando…';
+  const isExternal = settings.source === 'external';
+  let gpsLabel;
+  if (isExternal && ext.status !== 'connected') {
+    gpsLabel = ext.status === 'disconnected' ? 'Receptor desconectado' : 'Conectando receptor…';
+  } else if (permission === 'error') {
+    gpsLabel = 'GPS no disponible';
+  } else if (current?.acc != null) {
+    const ft = isExternal && current.quality != null ? FIX_TYPES[current.quality]?.short : 'GPS';
+    gpsLabel = `${ft} ±${formatAccuracy(current.acc)}${isExternal && current.sats ? ` · ${current.sats} sat` : ''}`;
+  } else {
+    gpsLabel = isExternal ? 'Receptor sin solución' : 'GPS buscando…';
+  }
 
   return (
     <View style={styles.container}>
@@ -288,9 +317,7 @@ export default function SurveyScreen({ navigate, params }) {
             <Text style={styles.roundBtnText}>←</Text>
           </Pressable>
           <View style={[styles.gpsBadge, { backgroundColor: accuracyColor(current?.acc) }]}>
-            <Text style={styles.gpsText}>
-              {permission === 'error' ? 'GPS no disponible' : `GPS ${accTxt}`}
-            </Text>
+            <Text style={styles.gpsText}>{gpsLabel}</Text>
           </View>
         </View>
         {!follow && (
@@ -322,13 +349,19 @@ export default function SurveyScreen({ navigate, params }) {
         )}
         {recording && settings.mode === 'auto' && current?.acc != null && current.acc > settings.maxAccuracy && (
           <Text style={[styles.hint, { color: colors.bad }]}>
-            Precisión insuficiente (±{formatNumber(current.acc, 0)} m): no se están registrando puntos. Espera en un lugar
+            Precisión insuficiente (±{formatAccuracy(current.acc)}): no se están registrando puntos. Espera en un lugar
             despejado.
           </Text>
         )}
 
         {status === 'ready' ? (
-          <ScrollView style={{ maxHeight: 260 }} contentContainerStyle={{ gap: 10 }}>
+          <ScrollView style={{ maxHeight: 280 }} contentContainerStyle={{ gap: 10 }}>
+            <View style={styles.sourceRow}>
+              <Text style={{ flex: 1, color: colors.text }} numberOfLines={1}>
+                {isExternal ? `📡 ${settings.externalDevice?.name || 'Receptor externo'}` : '📱 GPS del teléfono'}
+              </Text>
+              <Button title="Cambiar" small variant="outline" onPress={() => navigate('gps', { from: 'survey' })} />
+            </View>
             <Text style={styles.label}>Modo de medición</Text>
             <Chips
               value={settings.mode}
@@ -349,7 +382,7 @@ export default function SurveyScreen({ navigate, params }) {
                 <Chips
                   value={settings.interval}
                   onChange={(interval) => updateSettings({ interval })}
-                  options={[1, 2, 5, 10].map((v) => ({ value: v, label: `${v} m` }))}
+                  options={(isExternal ? [0.5, 1, 2, 5, 10] : [1, 2, 5, 10]).map((v) => ({ value: v, label: `${v} m` }))}
                 />
               </>
             ) : (
@@ -366,7 +399,10 @@ export default function SurveyScreen({ navigate, params }) {
             <Chips
               value={settings.maxAccuracy}
               onChange={(maxAccuracy) => updateSettings({ maxAccuracy })}
-              options={[5, 10, 15, 25].map((v) => ({ value: v, label: `±${v} m` }))}
+              options={(isExternal ? [0.05, 0.1, 0.5, 1, 2, 5] : [5, 10, 15, 25]).map((v) => ({
+                value: v,
+                label: `±${formatAccuracy(v)}`,
+              }))}
             />
             <Button title="▶  Iniciar levantamiento" onPress={start} disabled={!current} />
             {!current && <Text style={[common.muted, styles.centerText]}>Esperando señal GPS…</Text>}
@@ -510,6 +546,14 @@ const styles = StyleSheet.create({
   statLabel: { fontSize: 11, color: colors.textMuted, marginTop: 1 },
   hint: { color: colors.primaryDark, fontWeight: '600', textAlign: 'center' },
   label: { fontWeight: '700', color: colors.text, marginTop: 4 },
+  sourceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: colors.bg,
+    borderRadius: 10,
+    padding: 8,
+  },
   controls: { flexDirection: 'row', gap: 8 },
   averaging: {
     flexDirection: 'row',

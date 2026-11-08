@@ -1,0 +1,7 @@
+{
+  "name": "bluetooth-gnss",
+  "version": "1.0.0",
+  "description": "Conexión a receptores GNSS externos por Bluetooth (SPP / NMEA)",
+  "main": "index.js",
+  "private": true
+}

@@ -1,6 +1,6 @@
 // Generación de archivos de exportación: KML (Google Earth), GeoJSON (QGIS),
 // CSV (Excel / AutoCAD) y un informe de texto.
-import { computeSurvey, formatNumber, AREA_UNITS, formatDMS } from './geo';
+import { computeSurvey, formatNumber, formatAccuracy, AREA_UNITS, formatDMS } from './geo';
 
 const esc = (s) =>
   String(s ?? '')
@@ -85,8 +85,8 @@ export function toGeoJSON(lot, points) {
             este: Number(v.utm.easting.toFixed(3)),
             norte: Number(v.utm.northing.toFixed(3)),
             zona_utm: `${v.utm.zone}${v.utm.hemisphere}`,
-            precision_m: v.acc != null ? Number(v.acc.toFixed(1)) : null,
-            altitud_m: v.alt != null ? Number(v.alt.toFixed(1)) : null,
+            precision_m: v.acc != null ? Number(v.acc.toFixed(3)) : null,
+            altitud_m: v.alt != null ? Number(v.alt.toFixed(3)) : null,
           },
           geometry: { type: 'Point', coordinates: [v.lon, v.lat] },
         })),
@@ -110,8 +110,8 @@ export function toCSV(lot, points) {
       v.utm.easting.toFixed(3),
       v.utm.northing.toFixed(3),
       `${v.utm.zone}${v.utm.hemisphere}`,
-      v.alt != null ? v.alt.toFixed(1) : '',
-      v.acc != null ? v.acc.toFixed(1) : '',
+      v.alt != null ? v.alt.toFixed(3) : '',
+      v.acc != null ? v.acc.toFixed(3) : '',
       s ? `V${s.from}-V${s.to}` : '',
       s ? s.length.toFixed(3) : '',
       s ? s.azimuth.toFixed(4) : '',
@@ -131,16 +131,19 @@ export function toReport(lot, points) {
   if (lot.notes) lines.push(`Notas:       ${lot.notes}`);
   lines.push(`Sistema:     WGS84 / UTM zona ${r.zone}${r.hemisphere}`);
   lines.push(`Vértices:    ${points.length}`);
+  lines.push(
+    `Equipo:      ${lot.source === 'external' ? `Receptor GNSS externo${lot.receiver ? ` (${lot.receiver})` : ''}` : 'GPS del teléfono'}`,
+  );
   lines.push('');
   lines.push('ÁREA');
   for (const u of AREA_UNITS) {
     lines.push(`  ${u.label.padEnd(12)} ${formatNumber(r.area / u.factor, u.decimals)}`);
   }
   if (r.areaUncertainty != null) {
-    lines.push(`  Incertidumbre aprox.: ± ${formatNumber(r.areaUncertainty, 0)} m²`);
+    lines.push(`  Incertidumbre aprox.: ± ${formatNumber(r.areaUncertainty, r.areaUncertainty < 10 ? 2 : 0)} m²`);
   }
   lines.push(`PERÍMETRO:   ${formatNumber(r.perimeter, 2)} m`);
-  if (r.meanAcc != null) lines.push(`Precisión GPS media: ± ${formatNumber(r.meanAcc, 1)} m`);
+  if (r.meanAcc != null) lines.push(`Precisión GPS media: ± ${formatAccuracy(r.meanAcc)}`);
   lines.push('');
   lines.push('CUADRO DE CONSTRUCCIÓN');
   lines.push('Lado       Rumbo               Distancia (m)   Azimut');
@@ -164,7 +167,9 @@ export function toReport(lot, points) {
   }
   lines.push('');
   lines.push(
-    'Nota: medición con GPS del teléfono (precisión típica 3–5 m). No sustituye un levantamiento con equipo topográfico certificado.',
+    lot.source === 'external'
+      ? 'Nota: la exactitud depende del tipo de solución del receptor (RTK fijo, flotante, DGPS) y de sus correcciones.'
+      : 'Nota: medición con GPS del teléfono (precisión típica 3–5 m). No sustituye un levantamiento con equipo topográfico certificado.',
   );
   return lines.join('\n') + '\n';
 }

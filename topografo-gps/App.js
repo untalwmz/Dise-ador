@@ -4,9 +4,10 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import HomeScreen from './src/screens/HomeScreen';
 import SurveyScreen from './src/screens/SurveyScreen';
 import DetailScreen from './src/screens/DetailScreen';
+import GpsSourceScreen from './src/screens/GpsSourceScreen';
 import { colors } from './src/theme';
 
-const SCREENS = { home: HomeScreen, survey: SurveyScreen, detail: DetailScreen };
+const SCREENS = { home: HomeScreen, survey: SurveyScreen, detail: DetailScreen, gps: GpsSourceScreen };
 
 export default function App() {
   const [route, setRoute] = useState({ name: 'home', params: undefined, key: 0 });

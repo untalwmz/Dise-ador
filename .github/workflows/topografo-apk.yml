@@ -72,27 +72,37 @@ jobs:
         run: |
           VERSION=$(node -p "require('./app.json').expo.version")
           SRC=$(find android/app/build/outputs/apk/release -name "*.apk" | head -n1)
-          DEST="topografo-gps-${VERSION}-${{ github.run_number }}.apk"
-          cp "$SRC" "$DEST"
+          NAME="topografo-gps-v${VERSION}-build${{ github.run_number }}"
+          cp "$SRC" "$NAME.apk"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "path=topografo-gps/$DEST" >> "$GITHUB_OUTPUT"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "path=topografo-gps/$NAME.apk" >> "$GITHUB_OUTPUT"
 
       - name: Subir APK como artefacto
         uses: actions/upload-artifact@v4
         with:
-          name: topografo-gps-apk
+          name: ${{ steps.apk.outputs.name }}
           path: ${{ steps.apk.outputs.path }}
           retention-days: 30
 
-      - name: Publicar Release (solo en main)
-        if: github.ref == 'refs/heads/main'
+      - name: Publicar Release con el APK
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: topografo-v${{ steps.apk.outputs.version }}-${{ github.run_number }}
-          name: "Topógrafo GPS v${{ steps.apk.outputs.version }} (#${{ github.run_number }})"
+          tag_name: ${{ steps.apk.outputs.name }}
+          target_commitish: ${{ github.sha }}
+          name: ${{ steps.apk.outputs.name }}.apk
+          make_latest: true
           body: |
-            APK compilado automáticamente desde `topografo-gps/`.
-            Commit: ${{ github.sha }}
+            ## Topógrafo GPS v${{ steps.apk.outputs.version }}
+
+            **Descarga:** `${{ steps.apk.outputs.name }}.apk` (en *Assets*, abajo).
+
+            ### Instalación en Android
+            1. Descarga el APK en el teléfono.
+            2. Ábrelo y permite «Instalar apps desconocidas» si Android lo pide.
+            3. Si tenías una versión anterior, se actualiza conservando tus lotes.
+
+            Rama: `${{ github.ref_name }}` · Commit: ${{ github.sha }}
           files: ${{ steps.apk.outputs.path }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -37,8 +37,14 @@ export default function HomeScreen({ navigate }) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Topógrafo GPS</Text>
-        <Text style={styles.subtitle}>Mide tu terreno caminando su perímetro</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.title}>Topógrafo GPS</Text>
+          <Text style={styles.subtitle}>Mide tu terreno caminando su perímetro</Text>
+        </View>
+        <Pressable onPress={() => navigate('gps', { from: 'home' })} style={styles.gpsBtn} hitSlop={8}>
+          <Text style={styles.gpsBtnIcon}>📡</Text>
+          <Text style={styles.gpsBtnText}>Receptor</Text>
+        </Pressable>
       </View>
 
       {draft && (
@@ -103,7 +109,17 @@ export default function HomeScreen({ navigate }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
-  header: { backgroundColor: colors.primary, paddingHorizontal: 20, paddingTop: 18, paddingBottom: 20 },
+  header: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  gpsBtn: { alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 12, padding: 8 },
+  gpsBtnIcon: { fontSize: 20 },
+  gpsBtnText: { color: '#fff', fontSize: 11, fontWeight: '700' },
   title: { color: '#fff', fontSize: 26, fontWeight: '800' },
   subtitle: { color: 'rgba(255,255,255,0.85)', marginTop: 2 },
   draft: { margin: 16, marginBottom: 0, borderColor: colors.accent, borderWidth: 2, gap: 4 },

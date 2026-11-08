@@ -17,6 +17,22 @@ App Android para medir terrenos caminando su perímetro con el GPS del teléfono
 - Borrador automático: si la app se cierra a mitad de una medición, se puede continuar.
 - La pantalla se mantiene encendida durante la medición.
 
+## Receptor GPS externo (Bluetooth)
+
+Botón **📡 Receptor** en la pantalla principal (o «Cambiar» antes de iniciar una medición).
+
+- Compatible con receptores GNSS que envían **NMEA por Bluetooth clásico (SPP)**: Garmin GLO,
+  Bad Elf, Trimble R1/R2, Emlid Reach, ArduSimple, receptores RTK genéricos, etc.
+- Empareja el receptor en los ajustes de Bluetooth de Android y luego elígelo en la lista.
+- Muestra el tipo de solución (GPS, DGPS, **RTK flotante**, **RTK fijo**), satélites, HDOP y precisión.
+  La precisión se toma de la sentencia GST cuando el receptor la envía; si no, se estima con HDOP.
+- Reconexión automática si se pierde la señal Bluetooth.
+- Para RTK, las correcciones (NTRIP o base) se configuran en la app del fabricante del receptor;
+  esta app lee la posición ya corregida.
+- Receptores USB u otros: usa una app de «ubicación simulada» y elige «GPS del teléfono».
+
+Código: `modules/bluetooth-gnss` (módulo nativo Kotlin) y `src/gnss/` (parser NMEA y conexión).
+
 ## Precisión
 
 El GPS de un teléfono tiene una precisión típica de 3–5 m a cielo abierto. Para mejores resultados:
@@ -37,8 +53,8 @@ npx expo run:android       # compilar e instalar en un teléfono conectado
 ```
 
 El APK se compila automáticamente con GitHub Actions (`.github/workflows/topografo-apk.yml`) en cada
-push que toque esta carpeta; se descarga desde la pestaña **Actions → artefacto `topografo-gps-apk`**.
-En `main`, además, se publica como Release.
+push que toque esta carpeta, y se publica como **Release** con el nombre del APK
+(`topografo-gps-vX.Y.Z-buildN.apk`): descárgalo desde la sección *Releases* del repositorio.
 
 ## Estructura
 

@@ -9,6 +9,8 @@ export const DEFAULT_SETTINGS = {
   interval: 2, // metros entre puntos en modo caminata
   maxAccuracy: 10, // descarta lecturas peores que esto (m)
   averageSamples: 10, // lecturas a promediar al marcar un vértice
+  source: 'phone', // 'phone' | 'external' (receptor Bluetooth)
+  externalDevice: null, // { name, address }
 };
 
 async function readJSON(key, fallback) {

@@ -231,7 +231,7 @@ export function averageFixes(samples) {
   let alt = 0;
   let altW = 0;
   for (const s of samples) {
-    const acc = Math.max(s.acc || 10, 0.5);
+    const acc = Math.max(s.acc || 10, 0.005);
     const w = 1 / (acc * acc);
     wSum += w;
     lat += s.lat * w;
@@ -349,6 +349,14 @@ export function formatNumber(v, decimals = 2) {
 export function formatArea(m2) {
   if (m2 >= 10000) return `${formatNumber(m2 / 10000, 4)} ha`;
   return `${formatNumber(m2, 1)} m²`;
+}
+
+/** Precisión con decimales según magnitud: 3,2 m · 0,45 m · 1,2 cm */
+export function formatAccuracy(m) {
+  if (m == null) return '—';
+  if (m < 0.1) return `${formatNumber(m * 100, 1)} cm`;
+  if (m < 1) return `${formatNumber(m, 2)} m`;
+  return `${formatNumber(m, 1)} m`;
 }
 
 export function formatLength(m) {
