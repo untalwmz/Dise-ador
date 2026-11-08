@@ -2,7 +2,7 @@
   "expo": {
     "name": "Topografo GPS",
     "slug": "topografo-gps",
-    "version": "1.2.0",
+    "version": "1.2.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -18,7 +18,7 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "package": "com.diseador.topografogps",
-      "versionCode": 4,
+      "versionCode": 5,
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
