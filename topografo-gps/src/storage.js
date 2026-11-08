@@ -14,7 +14,7 @@ export const DEFAULT_SETTINGS = {
   lengthUnit: 'm',
   areaUnit: 'm2',
   mapType: 'satellite', // satellite | hybrid | standard
-  mapProvider: 'google', // google | esri (Google solo si el APK tiene clave)
+  imagery: 'clarity', // clarity | esri (imágenes satelitales Esri, gratuitas)
 };
 
 async function readJSON(key, fallback) {

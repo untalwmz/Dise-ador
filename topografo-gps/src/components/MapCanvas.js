@@ -1,13 +1,12 @@
-import Constants from 'expo-constants';
-import GoogleMap from './GoogleMap';
 import LeafletMap from './LeafletMap';
 
-// true si el APK se compiló con clave de Google Maps (secreto GOOGLE_MAPS_API_KEY).
-export const GOOGLE_MAPS_AVAILABLE = Constants.expoConfig?.extra?.googleMaps === true;
+// Fuentes de imágenes satelitales gratuitas y sin clave.
+export const IMAGERY = [
+  { value: 'clarity', label: 'Esri Clarity (nítida)' },
+  { value: 'esri', label: 'Esri estándar (reciente)' },
+];
 
-// Mapa del lote. provider: 'google' | 'esri'. Sin clave siempre se usa Esri,
-// porque el SDK de Google se cierra si no encuentra la clave.
-export default function MapCanvas({ provider = 'google', ...props }) {
-  if (provider === 'google' && GOOGLE_MAPS_AVAILABLE) return <GoogleMap {...props} />;
+// Mapa del lote (Leaflet en WebView).
+export default function MapCanvas(props) {
   return <LeafletMap {...props} />;
 }

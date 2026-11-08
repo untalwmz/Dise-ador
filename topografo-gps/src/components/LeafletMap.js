@@ -38,7 +38,13 @@ const HTML = `<!DOCTYPE html>
 
   // Esri no tiene imágenes a zoom 18-19 en muchas zonas rurales ("Map data not yet
   // available"): por defecto zoom 17 ampliado y "tilemap" para subir donde hay imagen.
-  var SAT_URL = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer';
+  // Dos fuentes Esri gratuitas: "Clarity" (más nítida, a veces más antigua) y la estándar.
+  var SOURCES = {
+    clarity: 'https://clarity.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer',
+    esri: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer'
+  };
+  var imagery = 'clarity';
+  var SAT_URL = SOURCES[imagery];
   var SAFE_ZOOM = 17;
   var sat = L.tileLayer(SAT_URL + '/tile/{z}/{y}/{x}', {
     maxNativeZoom: SAFE_ZOOM, maxZoom: 22, attribution: 'Esri, Maxar, Earthstar Geographics'
@@ -59,6 +65,16 @@ const HTML = `<!DOCTYPE html>
   }
 
   var availCache = {};
+  function setImagery(src) {
+    if (!SOURCES[src] || src === imagery) return;
+    imagery = src;
+    SAT_URL = SOURCES[src];
+    availCache = {};
+    sat.options.maxNativeZoom = SAFE_ZOOM;
+    sat.setUrl(SAT_URL + '/tile/{z}/{y}/{x}');
+    if (map.hasLayer(sat)) { map.removeLayer(sat); sat.addTo(map); sat.bringToBack(); }
+    setTimeout(updateNative, 300);
+  }
   function tileXY(lat, lon, z) {
     var n = Math.pow(2, z), r = lat * Math.PI / 180;
     return [Math.floor((lon + 180) / 360 * n),
@@ -140,6 +156,7 @@ const HTML = `<!DOCTYPE html>
   window.setData = function(d) {
     pts = (d.points || []).map(function(p){ return [p.lat, p.lon]; });
     crosshair = !!d.crosshair;
+    if (d.imagery) setImagery(d.imagery);
     if (d.mapType) setMapType(d.mapType);
     drawShape();
     vertexLayer.clearLayers();
@@ -196,6 +213,7 @@ export default function LeafletMap({
   follow,
   onFollowChange,
   mapType = 'satellite',
+  imagery = 'clarity',
   crosshair = false,
   onCenterChange,
   editable = false,
@@ -219,11 +237,12 @@ export default function LeafletMap({
       current: current ? { lat: current.lat, lon: current.lon, acc: current.acc } : null,
       follow,
       mapType,
+      imagery,
       crosshair,
       editable,
       fitKey,
     });
-  }, [ready, points, sides, current, follow, mapType, crosshair, editable, fitKey, send]);
+  }, [ready, points, sides, current, follow, mapType, imagery, crosshair, editable, fitKey, send]);
 
   return (
     <View style={[styles.wrap, style]}>

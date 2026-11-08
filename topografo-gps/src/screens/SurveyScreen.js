@@ -13,7 +13,7 @@ import {
   View,
 } from 'react-native';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
-import MapCanvas, { GOOGLE_MAPS_AVAILABLE } from '../components/MapCanvas';
+import MapCanvas, { IMAGERY } from '../components/MapCanvas';
 import Button from '../components/Button';
 import Chips from '../components/Chips';
 import {
@@ -291,7 +291,7 @@ export default function SurveyScreen({ navigate, push, params, active }) {
 
       <View style={{ flex: 1 }}>
         <MapCanvas
-          provider={settings.mapProvider}
+          imagery={settings.imagery}
           points={points}
           sides={sides}
           current={current}
@@ -428,20 +428,10 @@ export default function SurveyScreen({ navigate, push, params, active }) {
         <Text style={styles.label}>Tipo de mapa</Text>
         <Chips value={settings.mapType} onChange={(mapType) => updateSettings({ mapType })} options={MAP_TYPES} />
         <Text style={styles.label}>Imágenes</Text>
-        <Chips
-          value={GOOGLE_MAPS_AVAILABLE ? settings.mapProvider : 'esri'}
-          onChange={(mapProvider) => {
-            if (mapProvider === 'google' && !GOOGLE_MAPS_AVAILABLE) {
-              Alert.alert('Google Maps no configurado', 'Este APK se compiló sin clave de Google Maps. Revisa las instrucciones del README.');
-              return;
-            }
-            updateSettings({ mapProvider });
-          }}
-          options={[
-            { value: 'google', label: 'Google' },
-            { value: 'esri', label: 'Esri' },
-          ]}
-        />
+        <Chips value={settings.imagery} onChange={(imagery) => updateSettings({ imagery })} options={IMAGERY} />
+        <Text style={common.muted}>
+          Si la imagen se ve borrosa o vieja en tu zona, prueba la otra fuente. Ambas son gratuitas y no requieren cuenta.
+        </Text>
       </Sheet>
 
       <Sheet visible={sheet === 'settings'} onClose={() => setSheet(null)} title="Ajustes de medición">

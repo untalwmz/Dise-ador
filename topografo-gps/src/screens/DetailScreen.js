@@ -170,7 +170,7 @@ export default function DetailScreen({ navigate, push, params, active }) {
         {view === 'map' ? (
           <View style={styles.mapBox}>
             <MapCanvas
-              provider={settings?.mapProvider}
+              imagery={settings?.imagery}
               mapType={settings?.mapType || 'satellite'}
               points={lot.points}
               sides={mapSides}

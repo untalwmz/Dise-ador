@@ -26,21 +26,11 @@ App Android para medir terrenos caminando su perímetro con el GPS del teléfono
 - Los vértices se pueden **arrastrar** para corregirlos; ↶ deshace, ⛶ encuadra el lote, ✓ guarda.
 - Botones de **Altitud** y **Clima** sin perder la medición en curso.
 
-## Mapa satelital de Google
+## Imágenes satelitales
 
-La app usa Google Maps si el APK se compila con una clave; si no, usa imágenes Esri.
-
-1. En [Google Cloud Console](https://console.cloud.google.com/) crea un proyecto y activa
-   **Maps SDK for Android** (requiere cuenta de facturación; el SDK de mapas para Android no tiene
-   costo por uso).
-2. En *Credenciales* crea una **clave de API** y restríngela a *Apps para Android* con:
-   - Paquete: `com.diseador.topografogps`
-   - SHA-1: `5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25`
-3. En GitHub: **Settings → Secrets and variables → Actions → New repository secret**,
-   nombre `GOOGLE_MAPS_API_KEY`, valor = la clave.
-4. Vuelve a compilar (cualquier cambio en `topografo-gps/` o *Run workflow*).
-
-La ubicación del teléfono ya usa el servicio de Google (Fused Location Provider de Google Play Services).
+Gratuitas y sin cuenta ni clave: **Esri Clarity** (más nítida, por defecto) y **Esri estándar** (más
+reciente). Se elige en el botón de capas ▤. La ubicación del teléfono usa el servicio de Google
+(Fused Location Provider de Google Play Services) a través de expo-location.
 
 ## Altitud (MSNM)
 
@@ -100,6 +90,6 @@ push que toque esta carpeta, y se publica como **Release** con el nombre del APK
 - `src/exporters.js` — KML, GeoJSON, CSV, informe.
 - `src/screens/SurveyScreen.js` — medición en campo.
 - `src/screens/DetailScreen.js` — resultados y exportación.
-- `src/components/MapCanvas.js` — elige Google Maps (`GoogleMap.js`) o Leaflet/Esri (`LeafletMap.js`).
+- `src/components/LeafletMap.js` — mapa Leaflet con imágenes Esri (Clarity / estándar).
 - `src/altitude.js`, `src/screens/AltitudeScreen.js` — geoide EGM96, barómetro, combinación.
 - `src/openmeteo.js`, `src/weatherStats.js`, `src/screens/WeatherScreen.js` — clima.
